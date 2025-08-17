@@ -84,7 +84,7 @@
     let ctx, isDrawing = false, lastX = 0, lastY = 0;
     let revealed = false;
     let pxChecked = false; // to throttle pixel counting
-    const THRESHOLD = 0.55; // reveal when 55% scratched
+    const THRESHOLD = 0.9; // reveal when 90% scratched
 
     function pickReward(){
       const r = rewards[Math.floor(Math.random() * rewards.length)];

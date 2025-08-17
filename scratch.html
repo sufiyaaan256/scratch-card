@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Scratch Rewards</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, sans-serif; }
+    body { display: grid; place-items: center; min-height: 100dvh; background: #f5f7fb; margin: 0; }
+    .card {
+      width: min(92vw, 420px);
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.08);
+      padding: 20px 20px 24px;
+    }
+    .head {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+    }
+    .head h1 { font-size: 18px; margin: 0; }
+    .scratch-wrap {
+      position: relative; border-radius: 12px; overflow: hidden; margin: 8px 0 14px;
+      background: #101828;
+    }
+    .reward {
+      display: grid; place-items: center; text-align: center;
+      color: white; padding: 36px 12px; height: 180px;
+      background: radial-gradient(120% 120% at 50% 0%, #1f2b55, #0f172a 60%);
+    }
+    .reward h2 { margin: 0 0 6px; font-size: 28px; letter-spacing: .2px; }
+    .reward p { margin: 0; opacity: .85 }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+    .row { display: flex; gap: 10px; }
+    button {
+      flex: 1; padding: 12px 14px; border-radius: 10px; border: 0; cursor: pointer; font-weight: 600;
+      background: #1f6feb; color: white;
+    }
+    button.secondary { background: #eef2ff; color: #1e2a78; }
+    .note { color:#667085; font-size: 12px; text-align: center; margin-top: 8px;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <h1>Scratch &amp; Reveal</h1>
+      
+    </div>
+
+    <div class="scratch-wrap" id="scratchWrap">
+      <div class="reward" id="reward">
+        <h2 id="rewardTitle">🎁 Tap & scratch!</h2>
+        <p id="rewardDesc">You might win coins, stickers, or a surprise.</p>
+      </div>
+      <canvas id="scratch"></canvas>
+    </div>
+
+    <div class="row">
+      <button id="newCard">New card</button>
+      <button class="secondary" id="revealAll">Reveal</button>
+    </div>
+    <div class="note">For Emaad Only.</div>
+  </div>
+
+  <script>
+    const rewards = [
+      { title: "₹5 Coin Pack", desc: "Nice! Add it to your piggy bank." },
+      { title: "Golden Sticker", desc: "Limited edition sparkle ✨" },
+      { title: "Mystery Box", desc: "Open in your profile to see!" },
+      { title: "₹0 Try Again", desc: "No loss, try another scratch." },
+      { title: "Coupon: 10% OFF", desc: "Valid on your next order." },
+      { title: "Super Badge", desc: "Profile flair unlocked." },
+      { title: "₹50 Bonus", desc: "Sweet! Treat yourself." },
+      { title: "Confetti Bomb", desc: "Just vibes 🎉" },
+    ];
+
+    const wrap = document.getElementById('scratchWrap');
+    const canvas = document.getElementById('scratch');
+    const rewardEl = document.getElementById('reward');
+    const titleEl = document.getElementById('rewardTitle');
+    const descEl = document.getElementById('rewardDesc');
+    const newBtn = document.getElementById('newCard');
+    const revealBtn = document.getElementById('revealAll');
+
+    let ctx, isDrawing = false, lastX = 0, lastY = 0;
+    let revealed = false;
+    let pxChecked = false; // to throttle pixel counting
+    const THRESHOLD = 0.55; // reveal when 55% scratched
+
+    function pickReward(){
+      const r = rewards[Math.floor(Math.random() * rewards.length)];
+  titleEl.textContent = r.title;
+  descEl.textContent = r.desc;
+
+  // Random background colors for the revealed reward
+  const bgColors = [
+    "linear-gradient(135deg, #1e3a8a, #3b82f6)", // blue
+    "linear-gradient(135deg, #7e22ce, #ec4899)", // purple-pink
+    "linear-gradient(135deg, #15803d, #22c55e)", // green
+    "linear-gradient(135deg, #b45309, #f59e0b)", // orange
+    "linear-gradient(135deg, #be123c, #ef4444)"  // red
+  ];
+  const randomBg = bgColors[Math.floor(Math.random() * bgColors.length)];
+  rewardEl.style.background = randomBg;
+    }
+
+    function resizeCanvas() {
+      // Set canvas internal size to match CSS size to keep drawing crisp
+      const rect = wrap.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      canvas.style.width = rect.width + 'px';
+      canvas.style.height = rect.height + 'px';
+
+      ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      // Paint the scratch layer
+      const radius = 12;
+      // Pick a random color for the scratch layer
+const colors = ['#c7cedb', '#1e40af', '#9333ea', '#f59e0b', '#16a34a', '#ef4444'];
+const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+ctx.fillStyle = randomColor;
+ctx.fillRect(0, 0, rect.width, rect.height);
+
+
+      // Add a subtle “foil” effect
+      const grad = ctx.createLinearGradient(0,0,rect.width,rect.height);
+      grad.addColorStop(0, 'rgba(255,255,255,0.25)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.05)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, rect.width, rect.height);
+
+      // Scratch text
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = '#939db2';
+      ctx.font = '600 20px system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Scratch here', rect.width/2, rect.height/2);
+      ctx.restore();
+
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 28;
+      revealed = false;
+    }
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches ? e.touches[0] : e;
+      return {
+        x: (touch.clientX - rect.left),
+        y: (touch.clientY - rect.top)
+      };
+    }
+
+    function start(e) {
+      e.preventDefault();
+      isDrawing = true;
+      const {x, y} = getPos(e);
+      lastX = x; lastY = y;
+      scratchTo(x, y, true);
+    }
+
+    function move(e) {
+      if (!isDrawing || revealed) return;
+      e.preventDefault();
+      const {x, y} = getPos(e);
+      scratchTo(x, y, false);
+      // Check scratched area occasionally to save work
+      if (!pxChecked) {
+        pxChecked = true;
+        requestAnimationFrame(checkRevealProgress);
+      }
+    }
+
+    function end() {
+      isDrawing = false;
+    }
+
+    function scratchTo(x, y, justDot) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      if (justDot) {
+        ctx.arc(x, y, ctx.lineWidth/2, 0, Math.PI*2);
+      } else {
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.fill();
+      ctx.restore();
+      lastX = x; lastY = y;
+    }
+
+    function checkRevealProgress() {
+      const { width, height } = canvas;
+      const sample = ctx.getImageData(0, 0, canvas.clientWidth, canvas.clientHeight);
+      let cleared = 0;
+      for (let i = 3; i < sample.data.length; i += 4) {
+        if (sample.data[i] === 0) cleared++; // alpha channel
+      }
+      const ratio = cleared / (sample.data.length / 4);
+      if (ratio > THRESHOLD) revealAll();
+      pxChecked = false;
+    }
+
+    function revealAll() {
+      if (revealed) return;
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      revealed = true;
+    }
+
+    function newCard() {
+      pickReward();
+      resizeCanvas();
+    }
+
+    // Event listeners
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+
+    canvas.addEventListener('touchstart', start, {passive:false});
+    canvas.addEventListener('touchmove', move, {passive:false});
+    window.addEventListener('touchend', end);
+
+    window.addEventListener('resize', resizeCanvas);
+    newBtn.addEventListener('click', newCard);
+    revealBtn.addEventListener('click', revealAll);
+
+    // init
+    pickReward();
+    resizeCanvas();
+  </script>
+</body>
+</html>
